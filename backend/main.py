@@ -3,8 +3,13 @@ import uvicorn
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from ingest import ingest_pdf, list_ingested_files
 import tempfile
+from typing import Optional
+
+
+from ingest import ingest_pdf, list_ingested_files
+from chain import ask_with_citations
+from retriever import retrieve_relevant_chunks, is_collection_empty
 
 app = FastAPI(title="RAG API", version="1.0.0")
 
@@ -24,6 +29,19 @@ class IngestResponse(BaseModel):
     chunks_created: int
     total_in_db: int
     message: str
+
+class AskRequest(BaseModel):
+    question: str
+    top_k: Optional[int] = 5          # number of chunks to retrieve
+    source_filter: Optional[str] = None  # filter to specific PDF
+    chat_history: Optional[list] = []    # previous conversation turns
+
+class AskResponse(BaseModel):
+    answer: str
+    citations: list
+    chunks_used: list
+    model: str
+    context_chunks_count: int
 
 
 @app.get("/")
@@ -66,7 +84,75 @@ def list_files():
     files = list_ingested_files()
     return {"files": files, "count": len(files)}
 
+@app.post("/ask", response_model=AskResponse)
+async def ask_question(request: AskRequest):
+    if is_collection_empty():
+        raise HTTPException(
+            status_code=400,
+            detail="No documents ingested yet. Please upload a PDF first."
+        )
 
+    if not request.question.strip():
+        raise HTTPException(status_code=400, detail="Question cannot be empty.")
+
+    # Step 1: Retrieve
+    chunks = retrieve_relevant_chunks(
+        query=request.question,
+        top_k=request.top_k,
+        source_filter=request.source_filter
+    )
+
+    if not chunks:
+        raise HTTPException(
+            status_code=404,
+            detail="No relevant chunks found. Try rephrasing your question."
+        )
+
+    # Step 2: Generate answer with citations
+    result = ask_with_citations(
+        question=request.question,
+        chunks=chunks,
+        chat_history=request.chat_history
+    )
+
+    return AskResponse(**result)
+
+
+
+@app.delete("/files/{filename}")
+def delete_file(filename: str):
+    import chromadb
+    from chromadb.utils import embedding_functions
+
+    CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "./chroma_db")
+    COLLECTION_NAME = os.getenv("CHROMA_COLLECTION_NAME", "citablerag_docs")
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+    client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
+    openai_ef = embedding_functions.OpenAIEmbeddingFunction(
+        api_key=OPENAI_API_KEY,
+        model_name="text-embedding-3-small"
+    )
+    collection = client.get_or_create_collection(
+        name=COLLECTION_NAME,
+        embedding_function=openai_ef
+    )
+
+    # Find all chunk IDs belonging to this file
+    results = collection.get(
+        where={"source_file": filename},
+        include=["metadatas"]
+    )
+
+    if not results["ids"]:
+        raise HTTPException(status_code=404, detail=f"File '{filename}' not found in database.")
+
+    collection.delete(ids=results["ids"])
+
+    return {
+        "success": True,
+        "message": f"Deleted {len(results['ids'])} chunks for '{filename}'"
+    }
 
 
 if __name__ == "__main__":
