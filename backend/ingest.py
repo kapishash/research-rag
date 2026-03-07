@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "./chroma_db")
-COLLECTION_NAME = os.getenv("CHROMA_COLLECTION_NAME", "researchragrag_docs")
+COLLECTION_NAME = os.getenv("CHROMA_COLLECTION_NAME", "researchrag_docs")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 

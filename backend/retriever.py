@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "./chroma_db")
-COLLECTION_NAME = os.getenv("CHROMA_COLLECTION_NAME", "researchragrag_docs")
+COLLECTION_NAME = os.getenv("CHROMA_COLLECTION_NAME", "researchrag_docs")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 DEFAULT_TOP_K = 5
 
@@ -23,15 +23,18 @@ def get_chroma_collection():
     )
     return collection
 
-def retrieve_relevant_chunks(query: str, top_k: int = DEFAULT_TOP_K) -> list[dict]:
+def retrieve_relevant_chunks(query: str, top_k: int = DEFAULT_TOP_K, source_filter: str = None) -> list[dict]:
     collection = get_chroma_collection()
     if collection.count() == 0:
         return []
 
+    where = {"source_file": source_filter} if source_filter else None
+
     results = collection.query(
         query_texts=[query],
         n_results=min(top_k, collection.count()),
-        include=["documents", "metadatas", "distances"]
+        include=["documents", "metadatas", "distances"],
+        **({"where": where} if where else {})
     )
 
     documents = results["documents"][0]
@@ -59,9 +62,9 @@ def is_collection_empty() -> bool:
 
 
 # for testing 
-if __name__ == "__main__":
-    query = "What is the main conclusion of the research?"
-    results = retrieve_relevant_chunks(query, top_k=3)
-    for i, r in enumerate(results):
-        print(f"\n[Chunk {i+1}] Source: {r['source_file']}, Page: {r['page_number']}, Relevance: {r['relevance_score']}%")
-        print(r["text"][:300])
+# if __name__ == "__main__":
+#     query = "What is the main conclusion of the research?"
+#     results = retrieve_relevant_chunks(query, top_k=3)
+#     for i, r in enumerate(results):
+#         print(f"\n[Chunk {i+1}] Source: {r['source_file']}, Page: {r['page_number']}, Relevance: {r['relevance_score']}%")
+#         print(r["text"][:300])

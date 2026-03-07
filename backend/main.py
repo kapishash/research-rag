@@ -125,7 +125,7 @@ def delete_file(filename: str):
     from chromadb.utils import embedding_functions
 
     CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "./chroma_db")
-    COLLECTION_NAME = os.getenv("CHROMA_COLLECTION_NAME", "citablerag_docs")
+    COLLECTION_NAME = os.getenv("CHROMA_COLLECTION_NAME", "researchrag_docs")
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
     client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
