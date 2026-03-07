@@ -1,0 +1,45 @@
+version: "3.9"
+
+services:
+
+  # ── FastAPI Backend ─────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: research-rag-backend
+    ports:
+      - "8000:8000"       
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - CHROMA_PERSIST_DIR=/app/chroma_db
+      - CHROMA_COLLECTION_NAME=research_rag_docs
+    volumes:
+      - ./chroma_db:/app/chroma_db
+    networks:
+      - research_rag_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── Streamlit Frontend ───────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: research_rag-frontend
+    ports:
+      - "8501:8501"       # Expose Streamlit on localhost:8501
+    environment:
+      - API_URL=http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy   # Wait until backend is healthy before starting
+    networks:
+      - research_rag_network
+
+networks:
+  research_rag_network:
+    driver: bridge
