@@ -303,7 +303,7 @@ MIT License — free to use, modify, and distribute.
 
 <div align="center">
 
-**Built by [Your Name](https://github.com/yourusername)**
+**Built by [Kapishankar Ashtankar](https://github.com/kapishash)**
 
 *Python 3.12 · GPT-4o · ChromaDB · LangChain · FastAPI · Streamlit · Docker*
 
